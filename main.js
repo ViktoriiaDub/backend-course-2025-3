@@ -1,24 +1,40 @@
-#!/usr/bin/env node
+
 import { Command } from "commander";
 import fs from "fs";
 
-const program = new Command();
+const program = new Command(); // об'єкт програми для налаштування команд
+
+//вимкнення стандартних повідомлень про помилки
+program.configureOutput({
+  // вимикаємо stderr (Commander туди друкує помилки)
+  writeErr: () => {},
+});
+
+//перехоплення помилок від commander
+program.exitOverride((err) => { 
+  // якщо відсутній обов’язковий параметр
+  if (err.code === 'commander.missingMandatoryOptionValue' || err.code === 'commander.optionMissingArgument' || err.code === 'commander.missingRequiredOption') {
+    console.error("Please, specify input option");
+    process.exit(1);
+  }
+  throw err; // інші помилки
+
+});
 
 program
-  .option("-i, --input <path>", "шлях до вхідного файлу JSON (обов’язковий)")
+  .requiredOption("-i, --input <path>", "шлях до вхідного файлу JSON (обов’язковий)")
   .option("-o, --output <path>", "шлях до файлу для запису результату")
   .option("-d, --display", "вивести результат у консоль")
   .option("-f, --furnished", "відображати лише будинки з furnishingstatus = 'furnished'")
   .option("-p, --price <number>", "відображати лише будинки з ціною меншою за вказану");
 
-program.parse(process.argv);
-const options = program.opts();
-
-// перевіряємо чи є обов'язковий параметр
-if (!options.input) {
-  console.error("Please, specify input file (-i or --input)");
+try {
+  program.parse(process.argv);
+} catch {
   process.exit(1);
 }
+
+const options = program.opts(); //зберігаємо усі параметри у цю змінну
 
 //перевіряємо чи існує файл
 if (!fs.existsSync(options.input)) {
@@ -27,10 +43,10 @@ if (!fs.existsSync(options.input)) {
 }
 
 //зчитуємо джисон файл
-let data;
+let data;//змінна для збереження даних з файлу
 try {
   const fileContent = fs.readFileSync(options.input, "utf8");
-  data = JSON.parse(fileContent);
+  data = JSON.parse(fileContent);//перетворення тексту у масив
 } catch (err) {
   console.error("Error reading or parsing JSON file:", err.message);
   process.exit(1);
@@ -43,15 +59,15 @@ if (!Array.isArray(data)) {
 }
 
 // фільтруємо з параметрами
-let filtered = data;
+let filtered = data; //масив без фільтрів
 
-if (options.furnished) {
+if (options.furnished) { //параметр для f
   filtered = filtered.filter(
     (item) => item.furnishingstatus?.toLowerCase() === "furnished"
   );
 }
 
-if (options.price) {
+if (options.price) {//параметр p
   const maxPrice = parseFloat(options.price);
   if (!isNaN(maxPrice)) {
     filtered = filtered.filter((item) => Number(item.price) < maxPrice);
@@ -81,8 +97,3 @@ if (options.display) {
 if (options.output) {
   fs.writeFileSync(options.output, resultText, "utf8");
 }
-
-
-
-
-
